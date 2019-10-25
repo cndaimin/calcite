@@ -495,6 +495,11 @@ public class SubstitutionVisitor {
     final List<MutableRel> queryDescendants = MutableRels.descendants(query);
     final List<MutableRel> targetDescendants = MutableRels.descendants(target);
 
+    MutableScan scan1 = (MutableScan)queryDescendants.get(queryDescendants.size() - 1);
+    MutableScan scan2 = (MutableScan)targetDescendants.get(targetDescendants.size() - 1);
+
+    boolean equals = scan1.equals(scan2);
+
     // Populate "equivalents" with (q, t) for each query descendant q and
     // target descendant t that are equal.
     final Map<MutableRel, MutableRel> map = new HashMap<>();
@@ -514,7 +519,9 @@ public class SubstitutionVisitor {
     final List<Replacement> attempted = new ArrayList<>();
     List<List<Replacement>> substitutions = new ArrayList<>();
 
-    for (;;) {
+    // TODO: debug
+    for (int round = 0;; round++) {
+      System.out.println(">>> Round " + round);
       int count = 0;
       MutableRel queryDescendant = query;
     outer:
@@ -528,6 +535,7 @@ public class SubstitutionVisitor {
             continue outer;
           }
         }
+        System.out.println(">>> Visit queryDescendant:\n" + queryDescendant);
         final MutableRel next = MutableRels.preOrderTraverseNext(queryDescendant);
         final MutableRel childOrNext =
             queryDescendant.getInputs().isEmpty()
@@ -535,12 +543,18 @@ public class SubstitutionVisitor {
         for (MutableRel targetDescendant : targetDescendants) {
           for (UnifyRule rule
               : applicableRules(queryDescendant, targetDescendant)) {
+            String ruleName = rule.getClass().getSimpleName();
+            if(ruleName.equals("ProjectToProjectUnifyRule")) {
+              System.out.println("got u");
+            }
             UnifyRuleCall call =
                 rule.match(this, queryDescendant, targetDescendant);
             if (call != null) {
               final UnifyResult result = rule.apply(call);
               if (result != null) {
                 ++count;
+                System.out.println("    >>> Target:\n" + targetDescendant);
+                System.out.println("    >>> Rule: " + ruleName);
                 attempted.add(
                     new Replacement(result.call.query, result.result, result.stopTrying));
                 result.call.query.replaceInParent(result.result);
@@ -861,6 +875,11 @@ public class SubstitutionVisitor {
 
     protected UnifyRuleCall match(SubstitutionVisitor visitor, MutableRel query,
         MutableRel target) {
+      // TODO
+      String ruleName = this.getClass().getSimpleName();
+      if(ruleName.equals("ProjectToProjectUnifyRule")) {
+        System.out.println("got u");
+      }
       if (queryOperand.matches(visitor, query)) {
         if (targetOperand.matches(visitor, target)) {
           return visitor.new UnifyRuleCall(this, query, target,

@@ -5,7 +5,13 @@ import org.apache.calcite.plan.MaterializedViewSubstitutionVisitor;
 import org.apache.calcite.plan.RelOptMaterialization;
 import org.apache.calcite.plan.RelOptMaterializations;
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.plan.hep.HepPlanner;
+import org.apache.calcite.plan.hep.HepProgram;
+import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.rules.FilterProjectTransposeRule;
+import org.apache.calcite.rel.rules.ProjectMergeRule;
+import org.apache.calcite.rel.rules.ProjectRemoveRule;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.ViewTable;
@@ -54,7 +60,31 @@ public class ASomeTest {
         System.out.println("scan:");
         show(tableScan);
 
-        List<RelNode> relNodes = new MaterializedViewSubstitutionVisitor(rel_mv, rel_query).go(tableScan);
+        HepProgram program =
+            new HepProgramBuilder()
+                .addRuleInstance(FilterProjectTransposeRule.INSTANCE)
+                .addRuleInstance(ProjectMergeRule.INSTANCE)
+                .addRuleInstance(ProjectRemoveRule.INSTANCE)
+                .build();
+
+        // We must use the same HEP planner for the two optimizations below.
+        // Thus different nodes with the same digest will share the same vertex in
+        // the plan graph. This is important for the matching process.
+        final HepPlanner hepPlanner = new HepPlanner(program);
+        hepPlanner.setRoot(rel_mv);
+//        RelNode cano_rel_mv = hepPlanner.findBestExp();
+        RelNode cano_rel_mv = rel_mv;
+
+        hepPlanner.setRoot(rel_query);
+//        RelNode cano_rel_query = hepPlanner.findBestExp();
+        RelNode cano_rel_query = rel_query;
+
+        System.out.println("cano query:");
+        show(cano_rel_query);
+        System.out.println("cano mv:");
+        show(cano_rel_mv);
+
+        List<RelNode> relNodes = new MaterializedViewSubstitutionVisitor(cano_rel_mv, cano_rel_query).go(tableScan);
         relNodes.forEach(relNode -> {
             System.out.println(RelOptUtil.toString(relNode));
         });
