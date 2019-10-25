@@ -17,6 +17,8 @@
 target
 .idea
 *.iml
+*.ipr
+*.iws
 settings.xml
 .classpath.txt
 .fullclasspath.txt
