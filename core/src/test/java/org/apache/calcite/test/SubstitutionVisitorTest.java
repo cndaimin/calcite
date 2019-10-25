@@ -1,11 +1,7 @@
 package org.apache.calcite.test;
 
-import com.google.common.collect.ImmutableList;
 import org.apache.calcite.plan.MaterializedViewSubstitutionVisitor;
-import org.apache.calcite.plan.RelOptMaterialization;
-import org.apache.calcite.plan.RelOptMaterializations;
 import org.apache.calcite.plan.RelOptUtil;
-import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgram;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelNode;
@@ -24,8 +20,8 @@ import org.apache.calcite.tools.Planner;
 import org.apache.calcite.tools.RelBuilder;
 import org.apache.calcite.tools.RelConversionException;
 import org.apache.calcite.tools.ValidationException;
-import org.apache.calcite.util.Pair;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -37,11 +33,8 @@ public class ASomeTest {
 
     @Test
     public void test() throws Exception {
-        String mv = "SELECT * FROM (\n" +
-            "    SELECT \"empid\", \"deptno\", SUM(\"salary\") AS \"m\" FROM \"emps\" GROUP BY \"empid\", \"deptno\"\n" +
-            ") WHERE \"m\" > 0";
-        String query = "SELECT \"empid\", SUM(\"salary\") AS \"m\" FROM \"emps\" GROUP BY \"empid\"";
-
+        String mv = "SELECT \"empid\", \"deptno\", SUM(\"salary\") FROM \"emps\" GROUP BY \"empid\", \"deptno\"";
+        String query = "SELECT \"empid\", SUM(\"salary\") FROM \"emps\" GROUP BY \"empid\"";
 
         RelNode rel_mv = compile(mv);
         RelNode rel_query = compile(query);
@@ -67,27 +60,10 @@ public class ASomeTest {
                 .addRuleInstance(ProjectRemoveRule.INSTANCE)
                 .build();
 
-        // We must use the same HEP planner for the two optimizations below.
-        // Thus different nodes with the same digest will share the same vertex in
-        // the plan graph. This is important for the matching process.
-        final HepPlanner hepPlanner = new HepPlanner(program);
-        hepPlanner.setRoot(rel_mv);
-//        RelNode cano_rel_mv = hepPlanner.findBestExp();
-        RelNode cano_rel_mv = rel_mv;
+        List<RelNode> relNodes = new MaterializedViewSubstitutionVisitor(rel_mv, rel_query)
+            .go(tableScan);
 
-        hepPlanner.setRoot(rel_query);
-//        RelNode cano_rel_query = hepPlanner.findBestExp();
-        RelNode cano_rel_query = rel_query;
-
-        System.out.println("cano query:");
-        show(cano_rel_query);
-        System.out.println("cano mv:");
-        show(cano_rel_mv);
-
-        List<RelNode> relNodes = new MaterializedViewSubstitutionVisitor(cano_rel_mv, cano_rel_query).go(tableScan);
-        relNodes.forEach(relNode -> {
-            System.out.println(RelOptUtil.toString(relNode));
-        });
+        Assert.assertEquals(relNodes.size(), 1);
     }
 
     private RelNode compile(String sql) throws SqlParseException, ValidationException, RelConversionException {
