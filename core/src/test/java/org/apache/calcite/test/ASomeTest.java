@@ -1,6 +1,7 @@
 package org.apache.calcite.test;
 
 import com.google.common.collect.ImmutableList;
+import org.apache.calcite.plan.MaterializedViewSubstitutionVisitor;
 import org.apache.calcite.plan.RelOptMaterialization;
 import org.apache.calcite.plan.RelOptMaterializations;
 import org.apache.calcite.plan.RelOptUtil;
@@ -26,19 +27,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public class AStep2Test {
+public class ASomeTest {
 
     @Test
     public void test() throws Exception {
-        String mv = "SELECT \"empid\", \"deptno\", SUM(\"salary\") FROM \"emps\" GROUP BY \"empid\", \"deptno\"";
-        String query = "SELECT * FROM (\n" +
-            "\t\tSELECT \"deptno\", SUM(\"salary\") FROM \"emps\" GROUP BY \"deptno\"\n" +
-            "\t) AS A\n" +
-            "\tJOIN \n" +
-            "\t(\n" +
-            "\t\tSELECT \"empid\", SUM(\"salary\") FROM \"emps\" GROUP BY \"empid\"\n" +
-            "\t) AS B\n" +
-            "\tON A.\"deptno\" = B.\"empid\"";
+        String mv = "SELECT * FROM (\n" +
+            "    SELECT \"empid\", \"deptno\", SUM(\"salary\") AS \"m\" FROM \"emps\" GROUP BY \"empid\", \"deptno\"\n" +
+            ") WHERE \"m\" > 0";
+        String query = "SELECT \"empid\", SUM(\"salary\") AS \"m\" FROM \"emps\" GROUP BY \"empid\"";
+
 
         RelNode rel_mv = compile(mv);
         RelNode rel_query = compile(query);
@@ -57,22 +54,10 @@ public class AStep2Test {
         System.out.println("scan:");
         show(tableScan);
 
-        RelOptMaterialization mat1 = new RelOptMaterialization(
-                tableScan, rel_mv, null, ImmutableList.of("hr", "mv"));
-        List<Pair<RelNode, List<RelOptMaterialization>>> result =
-                RelOptMaterializations.useMaterializedViews(rel_query, Arrays.asList(mat1));
-        System.out.println("###");
-        System.out.println("size: " + result.size());
-        result.forEach(pair -> {
-            System.out.println("---");
-            System.out.println("result: ");
-            show(pair.left);
-
-            pair.right.forEach(m -> {
-                System.out.println("used mv: " + m.qualifiedTableName);
-            });
+        List<RelNode> relNodes = new MaterializedViewSubstitutionVisitor(rel_mv, rel_query).go(tableScan);
+        relNodes.forEach(relNode -> {
+            System.out.println(RelOptUtil.toString(relNode));
         });
-        System.out.println("###");
     }
 
     private RelNode compile(String sql) throws SqlParseException, ValidationException, RelConversionException {
