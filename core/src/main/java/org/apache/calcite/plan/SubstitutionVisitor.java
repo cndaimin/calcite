@@ -544,9 +544,6 @@ public class SubstitutionVisitor {
           for (UnifyRule rule
               : applicableRules(queryDescendant, targetDescendant)) {
             String ruleName = rule.getClass().getSimpleName();
-            if(ruleName.equals("ProjectToProjectUnifyRule")) {
-              System.out.println("got u");
-            }
             UnifyRuleCall call =
                 rule.match(this, queryDescendant, targetDescendant);
             if (call != null) {
