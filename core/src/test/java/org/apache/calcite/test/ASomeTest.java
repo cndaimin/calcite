@@ -6,6 +6,7 @@ import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgram;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.rel2sql.RelToSqlConverter;
 import org.apache.calcite.rel.rules.CalcMergeRule;
 import org.apache.calcite.rel.rules.FilterAggregateTransposeRule;
 import org.apache.calcite.rel.rules.FilterCalcMergeRule;
@@ -20,6 +21,7 @@ import org.apache.calcite.rel.rules.ProjectRemoveRule;
 import org.apache.calcite.rel.rules.ProjectToCalcRule;
 import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.parser.SqlParseException;
 import org.apache.calcite.sql.parser.SqlParser;
@@ -39,8 +41,8 @@ public class ASomeTest {
 
   @Test
   public void test() throws Exception {
-    String mv = "SELECT * FROM \"emps\" WHERE \"salary\" < 3000";
-    String query = "SELECT * FROM \"emps\" WHERE \"salary\" > 5000";
+    String mv = "SELECT \"empid\" FROM \"emps\" WHERE \"salary\" > 3000";
+    String query = "SELECT \"empid\", \"deptno\" FROM \"emps\" WHERE \"salary\" > 5000";
 
     System.out.println(mv);
     System.out.println(query);
@@ -48,7 +50,7 @@ public class ASomeTest {
     RelNode rel_mv = convertSqlToRel(mv);
     RelNode rel_query = convertSqlToRel(query);
 
-    rootSchema.getSubSchema("hr").add("mv", new ScannableTableTest.SimpleTable());
+    rootSchema.getSubSchema("hr").add("mv", rootSchema.getSubSchema("hr").getTable("emps"));
     RelNode tableScan = relBuilder.scan("hr", "mv").build();
 
     System.out.println("query:");
@@ -67,24 +69,34 @@ public class ASomeTest {
     System.out.println("mv:");
     show(rel_mv);
 
-    System.out.println("--- results ------>");
-
     List<RelNode> relNodes = new SubstitutionVisitor(rel_mv, rel_query).go(tableScan);
+    System.out.println("\n--- results ------>");
     relNodes.forEach(rel -> {
       show(rel);
-
+      System.out.println(convertRelToSql(rel));
     });
     if (relNodes.isEmpty()) {
       System.out.println("nothing");
     }
   }
 
-  private RelNode convertSqlToRel(String sql) throws SqlParseException, ValidationException, RelConversionException {
+  private RelNode convertSqlToRel(String sql)
+      throws SqlParseException, ValidationException, RelConversionException {
     SqlNode parse = planner.parse(sql);
     SqlNode validate = planner.validate(parse);
     RelNode convert = planner.rel(validate).rel;
     planner.close();
     return convert;
+  }
+
+  private String convertRelToSql(RelNode root) {
+    return toSql(root, SqlDialect.DatabaseProduct.CALCITE.getDialect());
+  }
+
+  private String toSql(RelNode root, SqlDialect dialect) {
+    final RelToSqlConverter converter = new RelToSqlConverter(dialect);
+    final SqlNode sqlNode = converter.visitChild(0, root).asStatement();
+    return sqlNode.toSqlString(dialect).getSql();
   }
 
   private RelNode canonicalize(RelNode rel) {

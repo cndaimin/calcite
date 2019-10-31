@@ -519,9 +519,12 @@ public class SubstitutionVisitor {
     final List<Replacement> attempted = new ArrayList<>();
     List<List<Replacement>> substitutions = new ArrayList<>();
 
-    // TODO: debug
+    boolean debug = false;
+
     for (int round = 0;; round++) {
-      System.out.println(">>> Round " + round);
+      if (debug) {
+        System.out.println(">>> Round " + round);
+      }
       int count = 0;
       MutableRel queryDescendant = query;
     outer:
@@ -535,7 +538,9 @@ public class SubstitutionVisitor {
             continue outer;
           }
         }
-        System.out.println(">>> Visit queryDescendant:\n" + queryDescendant);
+        if (debug) {
+          System.out.println(">>> Visit queryDescendant:\n" + queryDescendant);
+        }
         final MutableRel next = MutableRels.preOrderTraverseNext(queryDescendant);
         final MutableRel childOrNext =
             queryDescendant.getInputs().isEmpty()
@@ -550,8 +555,10 @@ public class SubstitutionVisitor {
               final UnifyResult result = rule.apply(call);
               if (result != null) {
                 ++count;
-                System.out.println("    >>> Target:\n" + targetDescendant);
-                System.out.println("    >>> Rule: " + ruleName);
+                if (debug) {
+                  System.out.println("    >>> Target:\n" + targetDescendant);
+                  System.out.println("    >>> Rule: " + ruleName);
+                }
                 attempted.add(
                     new Replacement(result.call.query, result.result, result.stopTrying));
                 result.call.query.replaceInParent(result.result);
@@ -872,11 +879,7 @@ public class SubstitutionVisitor {
 
     protected UnifyRuleCall match(SubstitutionVisitor visitor, MutableRel query,
         MutableRel target) {
-      // TODO
       String ruleName = this.getClass().getSimpleName();
-      if(ruleName.equals("ProjectToProjectUnifyRule")) {
-        System.out.println("got u");
-      }
       if (queryOperand.matches(visitor, query)) {
         if (targetOperand.matches(visitor, target)) {
           return visitor.new UnifyRuleCall(this, query, target,
@@ -1120,6 +1123,7 @@ public class SubstitutionVisitor {
         final RexNode splitted =
             splitFilter(call.getSimplify(), queryCond, targetCond);
 
+        // TODO: TEST
         final RexNode compenCond;
         if (splitted != null) {
           if (splitted.isAlwaysTrue()) {
