@@ -577,13 +577,13 @@ public class SubstitutionVisitor {
                   // replacement list and add them into substitution list.
                   // Meanwhile we stop matching the descendants and jump
                   // to the next subtree in pre-order traversal.
-                  if (!target.equals(replacement)) {
-                    Replacement r = replace(
-                        query.getInput(), target, replacement.clone());
-                    assert r != null
-                        : rule + "should have returned a result containing the target.";
-                    attempted.add(r);
-                  }
+                  //if (!target.equals(replacement)) {
+                  //  Replacement r = replace(
+                  //      query.getInput(), target, replacement.clone());
+                  //  assert r != null
+                  //      : rule + "should have returned a result containing the target.";
+                  //  attempted.add(r);
+                  //}
                   substitutions.add(ImmutableList.copyOf(attempted));
                   attempted.clear();
                   queryDescendant = next;
