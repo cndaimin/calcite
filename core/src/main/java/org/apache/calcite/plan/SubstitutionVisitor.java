@@ -16,6 +16,11 @@
  */
 package org.apache.calcite.plan;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Sets;
 import org.apache.calcite.config.CalciteSystemProperty;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
@@ -63,16 +68,10 @@ import org.apache.calcite.util.Util;
 import org.apache.calcite.util.mapping.Mapping;
 import org.apache.calcite.util.mapping.Mappings;
 import org.apache.calcite.util.trace.CalciteTrace;
-
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.LinkedHashMultimap;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
-
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -612,12 +611,12 @@ public class SubstitutionVisitor {
         break;
       }
     }
-    if (!attempted.isEmpty()) {
-      // We had done some replacement attempt in the previous walk, but that
-      // did not lead to any substitutions in this walk, so we need to recover
-      // the replacement.
-      undoReplacement(attempted);
-    }
+    //if (!attempted.isEmpty()) {
+    //  // We had done some replacement attempt in the previous walk, but that
+    //  // did not lead to any substitutions in this walk, so we need to recover
+    //  // the replacement.
+    //  undoReplacement(attempted);
+    //}
     return substitutions;
   }
 
@@ -1118,6 +1117,48 @@ public class SubstitutionVisitor {
 
       final RexBuilder rexBuilder = call.getCluster().getRexBuilder();
 
+      UnifyResult result = getUnifyResult(call, query, queryCond, queryProjs, target, targetCond,
+          targetProjs,
+          rexBuilder);
+      if (result != null) {
+        return result;
+      }
+
+      final Map<RexNode, RelDataTypeField> projsToField = new HashMap<>();
+      for (int i = 0; i < queryProjs.size(); i++) {
+        projsToField.put(queryProjs.get(i), query.rowType.getFieldList().get(i));
+      }
+      for (int i = 0; i < targetProjs.size(); i++) {
+        projsToField.put(targetProjs.get(i), target.rowType.getFieldList().get(i));
+      }
+      final List<RexNode> unionProjs = new ArrayList<>();
+      final List<RelDataTypeField> fields = new ArrayList<>();
+      projsToField.entrySet().forEach(entry -> {
+        unionProjs.add(entry.getKey());
+        fields.add(entry.getValue());
+      });
+      final RexShuttle shuttle = getRexShuttle(unionProjs);
+      final RexNode unionCond = RexUtil.composeDisjunction(rexBuilder,
+          Arrays.asList(queryCond, targetCond));
+      final RelDataType rowType = call.getCluster().getTypeFactory().createStructType(fields);
+      final RexProgram unionRexProgram = RexProgram.create(
+          query.getInput().rowType, unionProjs, unionCond,
+          rowType, rexBuilder);
+      final MutableCalc unionCalc = MutableCalc.of(query.getInput(), unionRexProgram);
+
+      final RexProgram compenRexProgram = RexProgram.create(
+          rowType, shuttle.apply(queryProjs), shuttle.apply(queryCond),
+          query.rowType, rexBuilder);
+      final MutableCalc compenCalc = MutableCalc.of(unionCalc, compenRexProgram);
+      return tryMergeParentCalcAndGenResult(call, compenCalc);
+    }
+
+    private UnifyResult getUnifyResult(UnifyRuleCall call,
+                                       MutableCalc query, RexNode queryCond,
+                                       List<RexNode> queryProjs,
+                                       MutableCalc target, RexNode targetCond,
+                                       List<RexNode> targetProjs,
+                                       RexBuilder rexBuilder) {
       try {
         final RexShuttle shuttle = getRexShuttle(targetProjs);
         final RexNode splitted =
