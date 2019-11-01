@@ -43,10 +43,7 @@ public class AStep2Test {
         RelNode rel_mv = compile(mv);
         RelNode rel_query = compile(query);
 
-        SchemaPlus hr = rootSchema.getSubSchema("hr");
-        hr.add("mv", ViewTable.viewMacro(hr, mv,
-                Collections.singletonList("hr"),
-                Arrays.asList("hr", "mv"), false));
+        rootSchema.getSubSchema("hr").add("mv", new ASomeTest.SimpleTable(rel_mv.getRowType()));
 
         RelNode tableScan = relBuilder.scan("hr", "mv").build();
 

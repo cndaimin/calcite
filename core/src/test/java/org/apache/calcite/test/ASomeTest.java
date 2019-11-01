@@ -19,8 +19,12 @@ import org.apache.calcite.rel.rules.ProjectJoinTransposeRule;
 import org.apache.calcite.rel.rules.ProjectMergeRule;
 import org.apache.calcite.rel.rules.ProjectRemoveRule;
 import org.apache.calcite.rel.rules.ProjectToCalcRule;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexUtil;
+import org.apache.calcite.schema.ScannableTable;
 import org.apache.calcite.schema.SchemaPlus;
+import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.SqlDialect;
 import org.apache.calcite.sql.SqlNode;
 import org.apache.calcite.sql.parser.SqlParseException;
@@ -41,7 +45,7 @@ public class ASomeTest {
 
   @Test
   public void test() throws Exception {
-    String mv = "SELECT \"salary\" FROM \"emps\" WHERE \"salary\" > 3000";//, "deptno"
+    String mv = "SELECT \"deptno\", \"salary\" FROM \"emps\" WHERE \"salary\" > 3000";
     String query = "SELECT \"salary\" FROM \"emps\" WHERE \"salary\" > 5000";
 
     System.out.println(mv);
@@ -50,7 +54,7 @@ public class ASomeTest {
     RelNode rel_mv = convertSqlToRel(mv);
     RelNode rel_query = convertSqlToRel(query);
 
-    rootSchema.getSubSchema("hr").add("mv", rootSchema.getSubSchema("hr").getTable("emps"));
+    rootSchema.getSubSchema("hr").add("mv", new SimpleTable(rel_mv.getRowType()));
     RelNode tableScan = relBuilder.scan("hr", "mv").build();
 
     System.out.println("query:");
@@ -151,4 +155,19 @@ public class ASomeTest {
     rootSchema = null;
     planner = null;
   }
+
+  public static class SimpleTable extends AbstractTable {
+
+    private RelDataType rowType;
+
+    public SimpleTable(RelDataType rowType) {
+      this.rowType = rowType;
+    }
+
+    public RelDataType getRowType(RelDataTypeFactory typeFactory) {
+      return this.rowType;
+    }
+
+  }
+
 }
