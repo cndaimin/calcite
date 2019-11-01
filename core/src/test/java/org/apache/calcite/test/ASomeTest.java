@@ -41,8 +41,8 @@ public class ASomeTest {
 
   @Test
   public void test() throws Exception {
-    String mv = "SELECT \"empid\" FROM \"emps\" WHERE \"salary\" > 3000";
-    String query = "SELECT \"empid\", \"deptno\" FROM \"emps\" WHERE \"salary\" > 5000";
+    String mv = "SELECT \"salary\" FROM \"emps\" WHERE \"salary\" > 3000";//, "deptno"
+    String query = "SELECT \"salary\" FROM \"emps\" WHERE \"salary\" > 5000";
 
     System.out.println(mv);
     System.out.println(query);
