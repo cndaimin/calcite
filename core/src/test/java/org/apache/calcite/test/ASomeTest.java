@@ -43,14 +43,24 @@ import java.util.List;
 
 public class ASomeTest {
 
+  /**
+   * <ol>
+   * <li>RecordType(JavaType(int) empid
+   * <li>JavaType(int) deptno
+   * <li>JavaType(class java.lang.String) name
+   * <li>JavaType(float) salary
+   * <li>JavaType(class java.lang.Integer) commission
+   * </ol>
+   */
   @Test
   public void test() throws Exception {
     //String mv = "SELECT \"deptno\", \"salary\" FROM \"emps\" WHERE \"salary\" > 3000";
     //String query = "SELECT \"salary\" FROM \"emps\" WHERE \"salary\" < 2000";
 
-    String mv = "SELECT \"deptno\", \"empid\", SUM(\"salary\") FROM \"emps\" GROUP BY \"deptno\","
-        + " \"empid\"";
-    String query = "SELECT \"deptno\", SUM(\"salary\") FROM \"emps\" GROUP BY \"deptno\"";
+    String mv = "SELECT \"deptno\", \"empid\", \"name\", SUM(\"salary\") FROM \"emps\" GROUP BY "
+        + "\"deptno\", \"empid\", \"name\"";
+    String query = "SELECT \"empid\", \"deptno\", SUM(\"salary\") FROM \"emps\" GROUP BY "
+        + "\"empid\", \"deptno\"\n";
 
     System.out.println(mv);
     System.out.println(query);
