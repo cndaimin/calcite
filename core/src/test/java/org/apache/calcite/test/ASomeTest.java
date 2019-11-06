@@ -57,10 +57,10 @@ public class ASomeTest {
     //String mv = "SELECT \"deptno\", \"salary\" FROM \"emps\" WHERE \"salary\" > 3000";
     //String query = "SELECT \"salary\" FROM \"emps\" WHERE \"salary\" < 2000";
 
-    String mv = "SELECT \"deptno\", \"empid\", \"name\", SUM(\"salary\") FROM \"emps\" GROUP BY "
-        + "\"deptno\", \"empid\", \"name\"";
-    String query = "SELECT \"empid\", \"deptno\", SUM(\"salary\") FROM \"emps\" GROUP BY "
-        + "\"empid\", \"deptno\"\n";
+    String mv = "SELECT \"deptno\", \"name\", SUM(\"empid\") FROM \"emps\" GROUP BY "
+        + "\"deptno\", \"name\"";
+    String query = "SELECT \"empid\", \"name\", SUM(\"deptno\") FROM \"emps\" GROUP BY "
+        + "\"empid\", \"name\"\n";
 
     System.out.println(mv);
     System.out.println(query);

@@ -69,7 +69,6 @@ import org.apache.calcite.util.mapping.Mapping;
 import org.apache.calcite.util.mapping.Mappings;
 import org.apache.calcite.util.trace.CalciteTrace;
 import org.apache.commons.lang.ObjectUtils;
-import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 
 import java.util.ArrayList;
@@ -1633,7 +1632,8 @@ public class SubstitutionVisitor {
         }
       });
       final RexProgram calcRexProgram = RexProgram.create(
-          qInput.getInput().rowType, null, qInputCond,
+          qInput.getInput().rowType, rexBuilder.identityProjects(qInput.getInput().rowType),
+          qInputCond,
           qInput.getInput().rowType, rexBuilder);
       MutableAggregate result = MutableAggregate.of(
           MutableCalc.of(qInput.getInput(), calcRexProgram),
