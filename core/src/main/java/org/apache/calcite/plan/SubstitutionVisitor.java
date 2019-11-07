@@ -133,7 +133,8 @@ public class SubstitutionVisitor {
           AggregateToAggregateUnifyRule.INSTANCE,
           AggregateOnCalcToAggUnifyRule.INSTANCE,
           UnionToUnionUnifyRule.INSTANCE,
-          UnionOnCalcsToUnionUnifyRule.INSTANCE);
+          UnionOnCalcsToUnionUnifyRule.INSTANCE,
+          AggregateOnCalcToAggOnCalcUnifyRule.INSTANCE);
 
   /**
    * Factory for a builder for relational expressions.
@@ -1648,8 +1649,8 @@ public class SubstitutionVisitor {
 
   private static class AggregateOnCalcToAggOnCalcUnifyRule extends AbstractUnifyRule {
 
-    public static final AggregateOnCalcToAggUnifyRule INSTANCE =
-        new AggregateOnCalcToAggUnifyRule();
+    public static final AggregateOnCalcToAggOnCalcUnifyRule INSTANCE =
+        new AggregateOnCalcToAggOnCalcUnifyRule();
 
     private AggregateOnCalcToAggOnCalcUnifyRule() {
       super(operand(MutableAggregate.class, operand(MutableCalc.class, query(0))),

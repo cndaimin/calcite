@@ -57,16 +57,15 @@ public class ASomeTest {
     //String mv = "SELECT \"deptno\", \"salary\" FROM \"emps\" WHERE \"salary\" > 3000";
     //String query = "SELECT \"salary\" FROM \"emps\" WHERE \"salary\" < 2000";
 
-    String query = "SELECT \"deptno\", \"name\", SUM(\"empid\") as \"s_empid\" FROM \"emps\" "
+    String query = "SELECT \"deptno\", \"name\", SUM(\"salary\") as \"s_salary\" FROM \"emps\" "
         + "GROUP BY \"deptno\", \"name\"";
-    String mv = "SELECT \"empid\", \"name\", SUM(\"s_deptno\") AS \"s_deptno\"\n"
+    String mv = "SELECT \"empid\", \"name\", SUM(\"s_salary\") AS \"s_salary\"\n"
         + "FROM (\n"
-        + "\tSELECT \"deptno\", \"name\", \"empid\", SUM(\"deptno\") AS \"s_deptno\", SUM"
-        + "(\"empid\") AS \"s_empid\"\n"
+        + "\tSELECT \"empid\", \"deptno\", \"name\", SUM(\"salary\") AS \"s_salary\"\n"
         + "\tFROM \"hr\".\"emps\"\n"
-        + "\tGROUP BY \"deptno\", \"name\", \"empid\"\n"
-        + ") AS \"t0\"\n"
-        + "GROUP BY \"name\", \"empid\"";
+        + "\tGROUP BY \"empid\", \"deptno\", \"name\"\n"
+        + ") AS \"t\"\n"
+        + "GROUP BY \"empid\", \"name\"";
 
 
     System.out.println(query);
