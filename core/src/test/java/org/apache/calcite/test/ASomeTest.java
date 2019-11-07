@@ -1,7 +1,6 @@
 package org.apache.calcite.test;
 
 import org.apache.calcite.plan.RelOptUtil;
-import org.apache.calcite.plan.SubstitutionVisitor;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgram;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
@@ -22,7 +21,6 @@ import org.apache.calcite.rel.rules.ProjectToCalcRule;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexUtil;
-import org.apache.calcite.schema.ScannableTable;
 import org.apache.calcite.schema.SchemaPlus;
 import org.apache.calcite.schema.impl.AbstractTable;
 import org.apache.calcite.sql.SqlDialect;
@@ -38,8 +36,6 @@ import org.apache.calcite.tools.ValidationException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.List;
 
 public class ASomeTest {
 
@@ -57,19 +53,14 @@ public class ASomeTest {
     //String mv = "SELECT \"deptno\", \"salary\" FROM \"emps\" WHERE \"salary\" > 3000";
     //String query = "SELECT \"salary\" FROM \"emps\" WHERE \"salary\" < 2000";
 
-    String query = "SELECT \"deptno\", \"name\", SUM(\"salary\") as \"s_salary\" FROM \"emps\" "
-        + "GROUP BY \"deptno\", \"name\"";
-    String mv = "SELECT \"empid\", \"name\", SUM(\"s_salary\") AS \"s_salary\"\n"
+    String query =
+        "SELECT * FROM \"emps\" WHERE \"salary\" > 10";
+    String mv = "SELECT *\n"
         + "FROM (\n"
-        + "\tSELECT \"empid\", \"deptno\", \"name\", SUM(\"salary\") AS \"s_salary\"\n"
+        + "\tSELECT *\n"
         + "\tFROM \"hr\".\"emps\"\n"
-        + "\tGROUP BY \"empid\", \"deptno\", \"name\"\n"
-        + ") AS \"t\"\n"
-        + "GROUP BY \"empid\", \"name\"";
-
-
-    System.out.println(query);
-    System.out.println(mv);
+        + "\tWHERE \"salary\" < 5 OR \"salary\" > 10) AS \"t\"\n"
+        + "WHERE \"salary\" < 5";
 
     RelNode rel_mv = convertSqlToRel(mv);
     RelNode rel_query = convertSqlToRel(query);
@@ -93,15 +84,14 @@ public class ASomeTest {
     System.out.println("mv:");
     show(rel_mv);
 
-    List<RelNode> relNodes = new SubstitutionVisitor(rel_mv, rel_query).go(tableScan);
+    RelNode relNode = new SubstitutionVisitor0(rel_mv, rel_query).go(tableScan);
     System.out.println("\n--- results ------>");
-    relNodes.forEach(rel -> {
-      show(rel);
-      System.out.println(convertRelToSql(rel));
-    });
-    if (relNodes.isEmpty()) {
-      System.out.println("nothing");
-    }
+    show(relNode);
+    System.out.println("query:\n" + query);
+    System.out.println();
+    System.out.println("mv:\n" + mv);
+    System.out.println();
+    System.out.println("converted:\n" + convertRelToSql(relNode));
   }
 
   private RelNode convertSqlToRel(String sql)
