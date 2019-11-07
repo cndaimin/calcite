@@ -57,13 +57,20 @@ public class ASomeTest {
     //String mv = "SELECT \"deptno\", \"salary\" FROM \"emps\" WHERE \"salary\" > 3000";
     //String query = "SELECT \"salary\" FROM \"emps\" WHERE \"salary\" < 2000";
 
-    String mv = "SELECT \"deptno\", \"name\", SUM(\"empid\") FROM \"emps\" GROUP BY "
-        + "\"deptno\", \"name\"";
-    String query = "SELECT \"empid\", \"name\", SUM(\"deptno\") FROM \"emps\" GROUP BY "
-        + "\"empid\", \"name\"\n";
+    String query = "SELECT \"deptno\", \"name\", SUM(\"empid\") as \"s_empid\" FROM \"emps\" "
+        + "GROUP BY \"deptno\", \"name\"";
+    String mv = "SELECT \"empid\", \"name\", SUM(\"s_deptno\") AS \"s_deptno\"\n"
+        + "FROM (\n"
+        + "\tSELECT \"deptno\", \"name\", \"empid\", SUM(\"deptno\") AS \"s_deptno\", SUM"
+        + "(\"empid\") AS \"s_empid\"\n"
+        + "\tFROM \"hr\".\"emps\"\n"
+        + "\tGROUP BY \"deptno\", \"name\", \"empid\"\n"
+        + ") AS \"t0\"\n"
+        + "GROUP BY \"name\", \"empid\"";
 
-    System.out.println(mv);
+
     System.out.println(query);
+    System.out.println(mv);
 
     RelNode rel_mv = convertSqlToRel(mv);
     RelNode rel_query = convertSqlToRel(query);

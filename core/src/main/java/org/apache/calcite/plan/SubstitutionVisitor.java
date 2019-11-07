@@ -473,12 +473,12 @@ public class SubstitutionVisitor {
    */
   public List<RelNode> go(RelNode replacement_) {
     List<List<Replacement>> matches = go(MutableRels.toMutable(replacement_));
-    if (matches.isEmpty()) {
-      return ImmutableList.of();
-    }
+    //if (matches.isEmpty()) {
+    //  return ImmutableList.of();
+    //}
     List<RelNode> sub = new ArrayList<>();
     sub.add(MutableRels.fromMutable(query.getInput(), relBuilder));
-    reverseSubstitute(relBuilder, query, matches, sub, 0, matches.size());
+    //reverseSubstitute(relBuilder, query, matches, sub, 0, matches.size());
     return sub;
   }
 
@@ -1627,17 +1627,20 @@ public class SubstitutionVisitor {
       ImmutableBitSet ancestorGroupSet = queryGroupSet.union(target.groupSet);
       List<AggregateCall> ancestorAggCalls = new ArrayList<>(queryAggCalls);
       target.aggCalls.forEach(aggCall -> {
-        if(!ancestorAggCalls.contains(aggCall)) {
+        if (!ancestorAggCalls.contains(aggCall)) {
           ancestorAggCalls.add(aggCall);
         }
       });
-      final RexProgram calcRexProgram = RexProgram.create(
-          qInput.getInput().rowType, rexBuilder.identityProjects(qInput.getInput().rowType),
-          qInputCond,
-          qInput.getInput().rowType, rexBuilder);
-      MutableAggregate result = MutableAggregate.of(
-          MutableCalc.of(qInput.getInput(), calcRexProgram),
-          ancestorGroupSet, ImmutableList.of(ancestorGroupSet), ancestorAggCalls);
+      MutableRel input = qInput.getInput();
+      if (!qInputCond.isAlwaysTrue()) {
+        RexProgram calcRexProgram = RexProgram.create(
+            qInput.getInput().rowType, rexBuilder.identityProjects(qInput.getInput().rowType),
+            qInputCond,
+            qInput.getInput().rowType, rexBuilder);
+        input = MutableCalc.of(qInput.getInput(), calcRexProgram);
+      }
+      MutableAggregate result = MutableAggregate.of(input, ancestorGroupSet,
+          ImmutableList.of(ancestorGroupSet), ancestorAggCalls);
 
       return result;
     }
@@ -1681,7 +1684,24 @@ public class SubstitutionVisitor {
 
     @Override
     protected MutableRel ancestor(UnifyRuleCall call) {
-      return null;
+      final MutableAggregate query = (MutableAggregate)call.query;
+      final MutableAggregate target = (MutableAggregate)call.target;
+      final RexBuilder rexBuilder = call.getCluster().getRexBuilder();
+
+      if (!query.groupSet.intersects(target.groupSet)) {
+        return null;
+      }
+      ImmutableBitSet ancestorGroupSet = query.groupSet.union(target.groupSet);
+      List<AggregateCall> ancestorAggCalls = new ArrayList<>(query.aggCalls);
+      target.aggCalls.forEach(aggCall -> {
+        if (!ancestorAggCalls.contains(aggCall)) {
+          ancestorAggCalls.add(aggCall);
+        }
+      });
+      MutableAggregate result = MutableAggregate.of(
+          query.getInput(),
+          ancestorGroupSet, ImmutableList.of(ancestorGroupSet), ancestorAggCalls);
+      return result;
     }
   }
 
