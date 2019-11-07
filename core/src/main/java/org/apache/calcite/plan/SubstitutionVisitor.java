@@ -1646,6 +1646,145 @@ public class SubstitutionVisitor {
     }
   }
 
+  private static class AggregateOnCalcToAggOnCalcUnifyRule extends AbstractUnifyRule {
+
+    public static final AggregateOnCalcToAggUnifyRule INSTANCE =
+        new AggregateOnCalcToAggUnifyRule();
+
+    private AggregateOnCalcToAggOnCalcUnifyRule() {
+      super(operand(MutableAggregate.class, operand(MutableCalc.class, query(0))),
+          operand(MutableAggregate.class, operand(MutableCalc.class, target(0))), 1);
+    }
+
+    @Override
+    protected UnifyResult apply(UnifyRuleCall call) {
+      final MutableAggregate query = (MutableAggregate)call.query;
+      final MutableCalc qInput = (MutableCalc)query.getInput();
+      final Pair<RexNode, List<RexNode>> qInputExplained = explainCalc(qInput);
+      final RexNode qInputCond = qInputExplained.left;
+      final List<RexNode> qInputProjs = qInputExplained.right;
+
+      final MutableAggregate target = (MutableAggregate)call.target;
+
+      final RexBuilder rexBuilder = call.getCluster().getRexBuilder();
+
+      final Mappings.TargetMapping mapping =
+          Project.getMapping(fieldCnt(qInput.getInput()), qInputProjs);
+      if (mapping == null) {
+        return null;// sure will not happen
+      }
+
+      if (!qInputCond.isAlwaysTrue()) {
+        try {
+          // Fail the matching when filtering condition references
+          // non-grouping columns in target.
+          qInputCond.accept(new RexVisitorImpl<Void>(true) {
+            @Override
+            public Void visitInputRef(RexInputRef inputRef) {
+              if (!target.groupSets.stream()
+                  .allMatch(groupSet -> groupSet.get(inputRef.getIndex()))) {
+                throw Util.FoundOne.NULL;
+              }
+              return super.visitInputRef(inputRef);
+            }
+          });
+        } catch (Util.FoundOne one) {
+          return null;
+        }
+      }
+
+      final Mapping inverseMapping = mapping.inverse();
+      final MutableAggregate aggregate2 =
+          permute(query, qInput.getInput(), inverseMapping);
+
+      final Mappings.TargetMapping mappingForQueryCond = Mappings.target(
+          target.groupSet::indexOf,
+          target.getInput().rowType.getFieldCount(),
+          target.groupSet.cardinality());
+      final RexNode targetCond = RexUtil.apply(mappingForQueryCond, qInputCond);
+
+      final MutableRel unifiedAggregate =
+          unifyAggregates(aggregate2, targetCond, target);
+      if (unifiedAggregate == null) {
+        return null;
+      }
+      // Add Project if the mapping breaks order of fields in GroupSet
+      if (!Mappings.keepsOrdering(mapping)) {
+        final List<Integer> posList = new ArrayList<>();
+        final int fieldCount = aggregate2.rowType.getFieldCount();
+        for (int group : aggregate2.groupSet) {
+          if (inverseMapping.getTargetOpt(group) != -1) {
+            posList.add(inverseMapping.getTarget(group));
+          }
+        }
+        for (int i = posList.size(); i < fieldCount; i++) {
+          posList.add(i);
+        }
+        final List<RexNode> compenProjs =
+            MutableRels.createProjectExprs(unifiedAggregate, posList);
+        final RexProgram compensatingRexProgram = RexProgram.create(
+            unifiedAggregate.rowType, compenProjs, null,
+            query.rowType, rexBuilder);
+        final MutableCalc compenCalc =
+            MutableCalc.of(unifiedAggregate, compensatingRexProgram);
+        if (unifiedAggregate instanceof MutableCalc) {
+          final MutableCalc newCompenCalc =
+              mergeCalc(rexBuilder, compenCalc, (MutableCalc)unifiedAggregate);
+          return tryMergeParentCalcAndGenResult(call, newCompenCalc);
+        } else {
+          return tryMergeParentCalcAndGenResult(call, compenCalc);
+        }
+      } else {
+        return tryMergeParentCalcAndGenResult(call, unifiedAggregate);
+      }
+    }
+
+    // TODO: AGG ON CALC TO. AGG ON CALC
+    @Override
+    protected MutableRel ancestor(UnifyRuleCall call) {
+      final MutableAggregate query = (MutableAggregate) call.query;
+      final MutableCalc qInput = (MutableCalc) query.getInput();
+      final Pair<RexNode, List<RexNode>> qInputExplained = explainCalc(qInput);
+      final RexNode qInputCond = qInputExplained.left;
+      final List<RexNode> qInputProjs = qInputExplained.right;
+
+      final MutableAggregate target = (MutableAggregate) call.target;
+      final MutableCalc tInput = (MutableCalc) target.getInput();
+      final Pair<RexNode, List<RexNode>> tInputExplained = explainCalc(tInput);
+      final RexNode tInputCond = tInputExplained.left;
+      final List<RexNode> tInputProjs = tInputExplained.right;
+
+      if (!qInputCond.isAlwaysTrue() || !tInputCond.isAlwaysTrue()) {
+        return null;
+      }
+
+      final RexBuilder rexBuilder = call.getCluster().getRexBuilder();
+
+      final Mapping qInverseMapping = Project.getMapping(fieldCnt(qInput.getInput()), qInputProjs).inverse();
+      final Mapping tInverseMapping = Project.getMapping(fieldCnt(tInput.getInput()), tInputProjs).inverse();
+      ImmutableBitSet queryGroupSet = Mappings.apply(qInverseMapping, query.groupSet);
+      ImmutableBitSet targetGroupSet = Mappings.apply(tInverseMapping, target.groupSet);
+      List<AggregateCall> queryAggCalls =
+          Util.transform(query.aggCalls, c -> c.transform(qInverseMapping));
+      List<AggregateCall> targetAggCalls =
+          Util.transform(target.aggCalls, c -> c.transform(tInverseMapping));
+      if (!queryGroupSet.intersects(targetGroupSet)) {
+        return null;
+      }
+      ImmutableBitSet ancestorGroupSet = queryGroupSet.union(targetGroupSet);
+      List<AggregateCall> ancestorAggCalls = new ArrayList<>(queryAggCalls);
+      targetAggCalls.forEach(aggCall -> {
+        if (!ancestorAggCalls.contains(aggCall)) {
+          ancestorAggCalls.add(aggCall);
+        }
+      });
+      MutableAggregate result = MutableAggregate.of(qInput.getInput(), ancestorGroupSet,
+          ImmutableList.of(ancestorGroupSet), ancestorAggCalls);
+
+      return result;
+    }
+  }
+
   /** A {@link SubstitutionVisitor.UnifyRule} that matches a
    * {@link org.apache.calcite.rel.core.Aggregate} to a
    * {@link org.apache.calcite.rel.core.Aggregate}, provided
